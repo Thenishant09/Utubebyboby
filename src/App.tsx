@@ -149,9 +149,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      // Replace YOUR_LOCAL_IP with your actual local network IP address
-      const backendUrl = 'http://192.168.1.5:5000/download';
-
+      const backendUrl = 'https://your-backend-host.com/download';
       const response = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -186,11 +184,8 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(link.href);
-
     } catch (err: any) {
-      setError(
-        'Something went wrong.'
-      );
+      setError('Could not connect to the backend. Make sure your backend is deployed and the URL is correct.');
     } finally {
       setIsLoading(false);
     }
@@ -205,10 +200,7 @@ export default function App() {
       justifyContent: 'center',
       background: 'none'
     }}>
-      <form
-        style={cardStyle}
-        onSubmit={handleDownload}
-      >
+      <form style={cardStyle} onSubmit={handleDownload}>
         <div style={titleStyle}>
           <div style={ytLogoStyle}>
             <svg viewBox="0 0 32 32" fill="none" width={32} height={32}>
@@ -216,9 +208,7 @@ export default function App() {
               <polygon points="12,10 24,16 12,22" fill="#fff"/>
             </svg>
           </div>
-          <h1 style={h1Style}>
-            UTube Video Downloader
-          </h1>
+          <h1 style={h1Style}>UTube Video Downloader</h1>
         </div>
         <div style={subtitleStyle}>Download YouTube videos instantly in HD</div>
         <div style={helperStyle}>No registration required. Free forever.</div>
