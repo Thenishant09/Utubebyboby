@@ -185,7 +185,7 @@ export default function App() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(link.href);
     } catch (err: any) {
-      setError('Could not connect to the backend. Make sure your backend is deployed and the URL is correct.');
+      setError('Something went Wrong. Please try again later.');
     } finally {
       setIsLoading(false);
     }
