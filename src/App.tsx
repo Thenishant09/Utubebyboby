@@ -149,8 +149,8 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      // Change the backendUrl to your local network IP
-      const backendUrl = 'http://YOUR_LOCAL_IP:5000/download';
+      // Replace YOUR_LOCAL_IP with your actual local network IP address
+      const backendUrl = 'http://192.168.1.5:5000/download';
 
       const response = await fetch(backendUrl, {
         method: 'POST',
@@ -189,7 +189,7 @@ export default function App() {
 
     } catch (err: any) {
       setError(
-        'Could not connect to the backend. Please ensure the Flask server is running on http://127.0.0.1:5000'
+        'Something went wrong.'
       );
     } finally {
       setIsLoading(false);
