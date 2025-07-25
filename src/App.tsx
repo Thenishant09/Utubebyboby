@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 
-// Centered Card UI as main app
 const cardStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.10)',
   borderRadius: 22,
@@ -44,7 +43,7 @@ const h1Style: React.CSSProperties = {
   fontWeight: 700,
   letterSpacing: '1px',
   textAlign: 'left',
-  background: 'linear-gradient(90deg,#6366f1,#9333ea,#2563eb)',
+  background: 'linear-gradient(90deg,#6366f1,#93333ea,#2563eb)',
   WebkitBackgroundClip: 'text',
   backgroundClip: 'text',
   color: 'transparent',
@@ -131,7 +130,6 @@ const footerStyle: React.CSSProperties = {
   textAlign: 'center',
 };
 
-// Main App Component
 export default function App() {
   const [url, setUrl] = useState('');
   const [format, setFormat] = useState('mp4');
@@ -151,7 +149,8 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const backendUrl = 'http://127.0.0.1:5000/download';
+      // Change the backendUrl to your local network IP
+      const backendUrl = 'http://YOUR_LOCAL_IP:5000/download';
 
       const response = await fetch(backendUrl, {
         method: 'POST',
@@ -178,7 +177,6 @@ export default function App() {
         return;
       }
 
-      // If everything is fine, download file
       const blob = await response.blob();
       const filename = `download.${format}`;
       const link = document.createElement('a');
@@ -213,7 +211,6 @@ export default function App() {
       >
         <div style={titleStyle}>
           <div style={ytLogoStyle}>
-            {/* YouTube SVG logo */}
             <svg viewBox="0 0 32 32" fill="none" width={32} height={32}>
               <rect width="32" height="32" rx="8" fill="#FF0000"/>
               <polygon points="12,10 24,16 12,22" fill="#fff"/>
@@ -258,7 +255,6 @@ export default function App() {
             style={buttonStyle}
             disabled={isLoading}
           >
-            {/* Download SVG icon */}
             <svg width="22" height="22" fill="none" viewBox="0 0 24 24">
               <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>

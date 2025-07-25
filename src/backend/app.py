@@ -37,12 +37,10 @@ def download_video():
     os.makedirs(video_folder, exist_ok=True)
 
     try:
-        # First get format info
         with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
             info = ydl.extract_info(url, download=False)
             formats = info.get('formats', [])
 
-        # Map quality names to format selectors
         quality_map = {
             "best": "best",
             "worst": "worst",
@@ -54,27 +52,23 @@ def download_video():
             "144p": "best[height<=144]"
         }
 
-        # Check if requested quality is a format_id or quality name
         format_selector = requested_quality
         if requested_quality in quality_map:
             format_selector = quality_map[requested_quality]
         elif requested_quality not in [f['format_id'] for f in formats] and requested_quality not in ["best", "worst"]:
-            # Check if it's a valid quality name pattern
             if requested_quality.endswith('p') and requested_quality[:-1].isdigit():
                 height = int(requested_quality[:-1])
                 format_selector = f"best[height<={height}]"
             else:
-                available_qualities = list(quality_map.keys()) + [f['format_id'] for f in formats[:10]]  # Show first 10 format IDs
+                available_qualities = list(quality_map.keys()) + [f['format_id'] for f in formats[:10]]
                 return jsonify({"error": f"Requested quality '{requested_quality}' is not available. Available options: {', '.join(available_qualities)}"}), 400
 
-        # Set download options
         ydl_opts = {
             "format": format_selector,
             "outtmpl": os.path.join(video_folder, f"%(title)s.%(ext)s"),
             "postprocessors": [],
         }
 
-        # Add postprocessor for mp3 only
         if format_ == "mp3":
             ydl_opts["postprocessors"].append({
                 "key": "FFmpegExtractAudio",
@@ -82,34 +76,23 @@ def download_video():
                 "preferredquality": "192",
             })
 
-        # Download the video
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        # Search for the downloaded file - improved file finding logic
         video_file = None
-        
-        # First try to find files with the requested format
         files = list(Path(video_folder).glob(f"*.{format_}"))
-        
-        # If no files found with requested format, try common video formats
         if not files:
             for ext in ['mp4', 'webm', 'mkv', 'avi', 'mov']:
                 files = list(Path(video_folder).glob(f"*.{ext}"))
                 if files:
                     break
-        
-        # If still no files, get all files in the folder
         if not files:
             files = [f for f in Path(video_folder).iterdir() if f.is_file()]
-        
         if not files:
             return jsonify({"error": "Download failed - no files found"}), 500
 
-        # Get the most recently created file
         video_file = max(files, key=lambda f: f.stat().st_ctime)
 
-        # Clean up folder after sending
         @after_this_request
         def cleanup(response):
             try:
@@ -121,7 +104,6 @@ def download_video():
         return send_file(str(video_file), as_attachment=True)
 
     except Exception as e:
-        # Clean up on error
         try:
             shutil.rmtree(video_folder)
         except:
@@ -141,11 +123,8 @@ def get_formats():
         with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
             info = ydl.extract_info(url, download=False)
             formats = info.get("formats", [])
-            
-            # Improved format filtering - include both video and audio formats
             cleaned_formats = []
             for f in formats:
-                # Include video formats (has video codec) or audio-only formats
                 if f.get("vcodec") != "none" or f.get("acodec") != "none":
                     cleaned_formats.append({
                         "format_id": f["format_id"],
@@ -156,7 +135,6 @@ def get_formats():
                         "vcodec": f.get("vcodec"),
                         "acodec": f.get("acodec")
                     })
-            
             return jsonify(cleaned_formats)
     except Exception as e:
         traceback.print_exc()
