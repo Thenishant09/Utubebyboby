@@ -15,6 +15,14 @@ import yt_dlp
 app = Flask(__name__)
 CORS(app)
 
+# Ensure CORS headers are set for all responses (including errors)
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+    return response
+
 DOWNLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "downloads")
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
@@ -101,7 +109,13 @@ def download_video():
                 print("Cleanup error:", cleanup_err)
             return response
 
-        return send_file(str(video_file), as_attachment=True)
+        # Set mimetype and download_name for better mobile compatibility
+        return send_file(
+            str(video_file),
+            as_attachment=True,
+            download_name=video_file.name,  # Flask >=2.0
+            mimetype="video/mp4" if format_ == "mp4" else "audio/mpeg"
+        )
 
     except Exception as e:
         try:
@@ -109,7 +123,11 @@ def download_video():
         except:
             pass
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        # User-friendly error for common YouTube issues
+        err_msg = str(e)
+        if "Sign in to confirm you're not a bot" in err_msg or "This video is age restricted" in err_msg:
+            err_msg += " (This video may be age-restricted or require sign-in. Try another video.)"
+        return jsonify({"error": err_msg}), 500
 
 @app.route("/formats", methods=["POST"])
 def get_formats():

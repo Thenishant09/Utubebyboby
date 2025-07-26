@@ -43,10 +43,12 @@ const h1Style: React.CSSProperties = {
   fontWeight: 700,
   letterSpacing: '1px',
   textAlign: 'left',
-  background: 'linear-gradient(90deg,#6366f1,#93333ea,#2563eb)',
+  background: 'linear-gradient(90deg,#6366f1,#9333ea,#2563eb)', // fixed typo here
   WebkitBackgroundClip: 'text',
   backgroundClip: 'text',
   color: 'transparent',
+  // fallback color for browsers that don't support background-clip:text
+  WebkitTextFillColor: 'transparent',
 };
 
 const subtitleStyle: React.CSSProperties = {
@@ -161,7 +163,18 @@ export default function App() {
       if (!response.ok) {
         if (contentType.includes('application/json')) {
           const errorData = await response.json();
-          setError(errorData.error || 'Something went wrong');
+          // Add a hint for the "Sign in to confirm you're not a bot" error
+          if (
+            errorData.error &&
+            errorData.error.includes('Sign in to confirm you\'re not a bot')
+          ) {
+            setError(
+              errorData.error +
+                '\n\nThis video may be age-restricted or require sign-in. Try another video.'
+            );
+          } else {
+            setError(errorData.error || 'Something went wrong');
+          }
         } else {
           const text = await response.text();
           setError(`Error: ${text}`);
@@ -185,7 +198,11 @@ export default function App() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(link.href);
     } catch (err: any) {
-      setError('Something went Wrong. Please try again later.');
+      setError(
+        'Something went Wrong. Please try again later.\n\n' +
+        'If you are on mobile, make sure you have a stable internet connection and try a different video. ' +
+        'Some videos may not be downloadable due to YouTube restrictions.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -260,6 +277,7 @@ export default function App() {
             marginTop: '0.5rem',
             textAlign: 'center',
             fontWeight: 500,
+            whiteSpace: 'pre-line', // allow line breaks in error
           }}>
             {error}
           </div>
