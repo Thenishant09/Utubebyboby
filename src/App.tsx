@@ -43,13 +43,11 @@ const h1Style: React.CSSProperties = {
   fontWeight: 700,
   letterSpacing: '1px',
   textAlign: 'left',
-  background: 'linear-gradient(90deg,#6366f1,#9333ea,#2563eb)', // fixed typo here
+  background: 'linear-gradient(90deg,#6366f1,#9333ea,#2563eb)',
   WebkitBackgroundClip: 'text',
   backgroundClip: 'text',
   color: 'transparent',
-  // fallback color for browsers that don't support background-clip:text
   WebkitTextFillColor: 'transparent',
-  // This will show the heading in solid color if gradient is not supported
   display: 'inline-block',
   backgroundColor: '#6366f1',
 };
@@ -65,7 +63,7 @@ const subtitleStyle: React.CSSProperties = {
 };
 
 const helperStyle: React.CSSProperties = {
-  color: '#888',
+  color: '#ccc',
   fontSize: '0.95rem',
   marginBottom: '1.2rem',
   textAlign: 'center',
@@ -89,7 +87,6 @@ const inputStyle: React.CSSProperties = {
   outline: 'none',
   background: 'rgba(255,255,255,0.18)',
   color: '#222',
-  transition: 'border 0.2s, box-shadow 0.2s, background 0.2s',
   marginBottom: '1rem',
   boxShadow: '0 2px 8px 0 rgba(80, 0, 120, 0.07)',
   fontFamily: 'inherit',
@@ -166,10 +163,9 @@ export default function App() {
       if (!response.ok) {
         if (contentType.includes('application/json')) {
           const errorData = await response.json();
-          // Add a hint for the "Sign in to confirm you're not a bot" error
           if (
             errorData.error &&
-            errorData.error.includes('Sign in to confirm you\'re not a bot')
+            errorData.error.includes("Sign in to confirm you're not a bot")
           ) {
             setError(
               errorData.error +
@@ -200,7 +196,7 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(link.href);
-    } catch (err: any) {
+    } catch (err) {
       setError(
         'Something went Wrong. Please try again later.\n\n' +
         'If you are on mobile, make sure you have a stable internet connection and try a different video. ' +
@@ -224,8 +220,8 @@ export default function App() {
         <div style={titleStyle}>
           <div style={ytLogoStyle}>
             <svg viewBox="0 0 32 32" fill="none" width={32} height={32}>
-              <rect width="32" height="32" rx="8" fill="#FF0000"/>
-              <polygon points="12,10 24,16 12,22" fill="#fff"/>
+              <rect width="32" height="32" rx="8" fill="#FF0000" />
+              <polygon points="12,10 24,16 12,22" fill="#fff" />
             </svg>
           </div>
           <h1 style={h1Style}>UTube Video Downloader</h1>
@@ -239,7 +235,7 @@ export default function App() {
             required
             style={inputStyle}
             value={url}
-            onChange={e => setUrl(e.target.value)}
+            onChange={e => setUrl(e.target.value.trim())}
           />
           <select
             required
@@ -248,7 +244,7 @@ export default function App() {
             onChange={e => setQuality(e.target.value)}
           >
             <option value="360p">360p</option>
-            <option value="720p">720p</option>
+            <option value="720p">720p (HD)</option>
             <option value="1080p">1080p (Full HD)</option>
           </select>
           <select
@@ -266,7 +262,7 @@ export default function App() {
             disabled={isLoading}
           >
             <svg width="22" height="22" fill="none" viewBox="0 0 24 24">
-              <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             {isLoading ? 'Downloading...' : 'Download'}
           </button>
@@ -280,13 +276,13 @@ export default function App() {
             marginTop: '0.5rem',
             textAlign: 'center',
             fontWeight: 500,
-            whiteSpace: 'pre-line', // allow line breaks in error
+            whiteSpace: 'pre-line',
           }}>
             {error}
           </div>
         )}
         <div style={footerStyle}>
-          @ NISHANT KUMAR all rights reserved
+          © NISHANT KUMAR. All rights reserved.
         </div>
       </form>
     </div>
