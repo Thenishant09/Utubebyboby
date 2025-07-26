@@ -49,6 +49,9 @@ const h1Style: React.CSSProperties = {
   color: 'transparent',
   // fallback color for browsers that don't support background-clip:text
   WebkitTextFillColor: 'transparent',
+  // This will show the heading in solid color if gradient is not supported
+  display: 'inline-block',
+  backgroundColor: '#6366f1',
 };
 
 const subtitleStyle: React.CSSProperties = {
