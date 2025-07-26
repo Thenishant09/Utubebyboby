@@ -1,8 +1,3 @@
-"""
-YouTube Video Downloader Backend
-A Flask-based API server for downloading YouTube videos using yt-dlp
-"""
-
 import os
 import uuid
 import traceback
@@ -15,7 +10,6 @@ import yt_dlp
 app = Flask(__name__)
 CORS(app)
 
-# Ensure CORS headers are set for all responses (including errors)
 @app.after_request
 def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
@@ -44,37 +38,36 @@ def download_video():
     video_folder = os.path.join(DOWNLOAD_FOLDER, video_id)
     os.makedirs(video_folder, exist_ok=True)
 
+    # Browser-like User-Agent
+    common_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+
     try:
-        with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+        with yt_dlp.YoutubeDL({"quiet": True, "headers": common_headers}) as ydl:
             info = ydl.extract_info(url, download=False)
             formats = info.get('formats', [])
 
         quality_map = {
-            "best": "best",
+            "best": "bestvideo+bestaudio/best",
             "worst": "worst",
-            "720p": "best[height<=720]",
-            "1080p": "best[height<=1080]",
-            "480p": "best[height<=480]",
-            "360p": "best[height<=360]",
-            "240p": "best[height<=240]",
-            "144p": "best[height<=144]"
+            "720p": "bestvideo[height<=720]+bestaudio/best[height<=720]",
+            "1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+            "480p": "bestvideo[height<=480]+bestaudio/best[height<=480]",
+            "360p": "bestvideo[height<=360]+bestaudio/best[height<=360]",
+            "240p": "bestvideo[height<=240]+bestaudio/best[height<=240]",
+            "144p": "bestvideo[height<=144]+bestaudio/best[height<=144]"
         }
 
-        format_selector = requested_quality
-        if requested_quality in quality_map:
-            format_selector = quality_map[requested_quality]
-        elif requested_quality not in [f['format_id'] for f in formats] and requested_quality not in ["best", "worst"]:
-            if requested_quality.endswith('p') and requested_quality[:-1].isdigit():
-                height = int(requested_quality[:-1])
-                format_selector = f"best[height<={height}]"
-            else:
-                available_qualities = list(quality_map.keys()) + [f['format_id'] for f in formats[:10]]
-                return jsonify({"error": f"Requested quality '{requested_quality}' is not available. Available options: {', '.join(available_qualities)}"}), 400
+        format_selector = quality_map.get(requested_quality, requested_quality)
 
         ydl_opts = {
             "format": format_selector,
             "outtmpl": os.path.join(video_folder, f"%(title)s.%(ext)s"),
+            "merge_output_format": "mp4" if format_ == "mp4" else None,
             "postprocessors": [],
+            "quiet": True,
+            "headers": common_headers
         }
 
         if format_ == "mp3":
@@ -87,13 +80,9 @@ def download_video():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        video_file = None
-        files = list(Path(video_folder).glob(f"*.{format_}"))
-        if not files:
-            for ext in ['mp4', 'webm', 'mkv', 'avi', 'mov']:
-                files = list(Path(video_folder).glob(f"*.{ext}"))
-                if files:
-                    break
+        # Find downloaded file
+        files = list(Path(video_folder).glob("*"))
+        files = [f for f in files if f.is_file() and f.suffix in [".mp4", ".webm", ".mkv", ".avi", ".mov", ".mp3"]]
         if not files:
             files = [f for f in Path(video_folder).iterdir() if f.is_file()]
         if not files:
@@ -109,12 +98,14 @@ def download_video():
                 print("Cleanup error:", cleanup_err)
             return response
 
-        # Set mimetype and download_name for better mobile compatibility
+        mimetype = "video/mp4" if video_file.suffix == ".mp4" else (
+            "audio/mpeg" if video_file.suffix == ".mp3" else "application/octet-stream"
+        )
         return send_file(
             str(video_file),
             as_attachment=True,
-            download_name=video_file.name,  # Flask >=2.0
-            mimetype="video/mp4" if format_ == "mp4" else "audio/mpeg"
+            download_name=video_file.name,
+            mimetype=mimetype
         )
 
     except Exception as e:
@@ -123,11 +114,7 @@ def download_video():
         except:
             pass
         traceback.print_exc()
-        # User-friendly error for common YouTube issues
-        err_msg = str(e)
-        if "Sign in to confirm you're not a bot" in err_msg or "This video is age restricted" in err_msg:
-            err_msg += " (This video may be age-restricted or require sign-in. Try another video.)"
-        return jsonify({"error": err_msg}), 500
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/formats", methods=["POST"])
 def get_formats():
@@ -137,8 +124,12 @@ def get_formats():
     if not url:
         return jsonify({"error": "URL is required"}), 400
 
+    common_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+
     try:
-        with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+        with yt_dlp.YoutubeDL({"quiet": True, "headers": common_headers}) as ydl:
             info = ydl.extract_info(url, download=False)
             formats = info.get("formats", [])
             cleaned_formats = []
@@ -159,6 +150,5 @@ def get_formats():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
