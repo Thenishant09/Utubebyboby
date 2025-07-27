@@ -19,6 +19,7 @@ def add_cors_headers(response):
 
 DOWNLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "downloads")
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+COOKIES_FILE = os.path.join(os.path.dirname(__file__), "youtube.com_cookies.txt")  # Path to cookies.txt
 
 @app.route("/")
 def index():
@@ -38,16 +39,11 @@ def download_video():
     video_folder = os.path.join(DOWNLOAD_FOLDER, video_id)
     os.makedirs(video_folder, exist_ok=True)
 
-    # Browser-like User-Agent
     common_headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
 
     try:
-        with yt_dlp.YoutubeDL({"quiet": True, "headers": common_headers}) as ydl:
-            info = ydl.extract_info(url, download=False)
-            formats = info.get('formats', [])
-
         quality_map = {
             "best": "bestvideo+bestaudio/best",
             "worst": "worst",
@@ -67,7 +63,8 @@ def download_video():
             "merge_output_format": "mp4" if format_ == "mp4" else None,
             "postprocessors": [],
             "quiet": True,
-            "headers": common_headers
+            "headers": common_headers,
+            "cookiefile": COOKIES_FILE if os.path.exists(COOKIES_FILE) else None
         }
 
         if format_ == "mp3":
@@ -80,7 +77,6 @@ def download_video():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        # Find downloaded file
         files = list(Path(video_folder).glob("*"))
         files = [f for f in files if f.is_file() and f.suffix in [".mp4", ".webm", ".mkv", ".avi", ".mov", ".mp3"]]
         if not files:
@@ -129,7 +125,7 @@ def get_formats():
     }
 
     try:
-        with yt_dlp.YoutubeDL({"quiet": True, "headers": common_headers}) as ydl:
+        with yt_dlp.YoutubeDL({"quiet": True, "headers": common_headers, "cookiefile": COOKIES_FILE if os.path.exists(COOKIES_FILE) else None}) as ydl:
             info = ydl.extract_info(url, download=False)
             formats = info.get("formats", [])
             cleaned_formats = []
