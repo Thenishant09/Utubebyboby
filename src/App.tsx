@@ -161,21 +161,25 @@ export default function App() {
       const contentType = response.headers.get('Content-Type') || '';
 
       if (!response.ok) {
+        // Log error response for debugging
+        console.error('Backend error response:', response);
         if (contentType.includes('application/json')) {
           const errorData = await response.json();
+          console.error('Backend error data:', errorData);
           if (
             errorData.error &&
             errorData.error.includes("Sign in to confirm you're not a bot")
           ) {
             setError(
-              errorData.error +
-                '\n\nThis video may be age-restricted or require sign-in. Try another video.'
+              "This video cannot be downloaded due to YouTube restrictions.\n\n" +
+              "It may require sign-in or be age-restricted. Please try another video."
             );
           } else {
             setError(errorData.error || 'Something went wrong');
           }
         } else {
           const text = await response.text();
+          console.error('Backend error text:', text);
           setError(`Error: ${text}`);
         }
         return;
@@ -183,6 +187,7 @@ export default function App() {
 
       if (contentType.includes('application/json')) {
         const json = await response.json();
+        console.error('Unexpected JSON response:', json);
         setError(json.error || 'Unexpected response format.');
         return;
       }
@@ -197,6 +202,8 @@ export default function App() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(link.href);
     } catch (err) {
+      // Log error for debugging
+      console.error('Frontend download error:', err);
       setError(
         'Something went Wrong. Please try again later.\n\n' +
         'If you are on mobile, make sure you have a stable internet connection and try a different video. ' +
