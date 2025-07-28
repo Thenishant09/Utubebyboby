@@ -11,11 +11,12 @@ import tempfile
 app = Flask(__name__)
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
 
-# Create a temporary download folder
+# Temporary download folder
 DOWNLOAD_FOLDER = os.path.join(tempfile.gettempdir(), "downloads")
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-COOKIES_FILE = os.path.join(os.path.dirname(__file__), "youtube.com_cookies.txt")  # optional cookies.txt
+# Path to cookies.txt (check env var first for Render Secret File)
+COOKIES_FILE = os.environ.get("COOKIES_FILE_PATH", os.path.join(os.path.dirname(__file__), "cookies.txt"))
 
 @app.route("/")
 def index():
@@ -31,6 +32,16 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
     return response
+
+@app.route("/check-cookies")
+def check_cookies():
+    exists = os.path.exists(COOKIES_FILE)
+    size = os.path.getsize(COOKIES_FILE) if exists else 0
+    return jsonify({
+        "cookies_file": COOKIES_FILE,
+        "exists": exists,
+        "size": size
+    })
 
 @app.route("/download", methods=["POST"])
 def download_video():
@@ -67,12 +78,14 @@ def download_video():
             "outtmpl": os.path.join(video_folder, f"%(title)s.%(ext)s"),
             "merge_output_format": "mp4" if format_ == "mp4" else None,
             "postprocessors": [],
-            "quiet": False,  # show logs for debugging
+            "quiet": False,  # enable logs for debugging
             "headers": common_headers,
         }
 
+        used_cookies = False
         if os.path.exists(COOKIES_FILE):
             ydl_opts["cookiefile"] = COOKIES_FILE
+            used_cookies = True
 
         if format_ == "mp3":
             ydl_opts["postprocessors"].append({
@@ -86,7 +99,10 @@ def download_video():
 
         files = [f for f in Path(video_folder).glob("*") if f.is_file()]
         if not files:
-            return jsonify({"error": "Download failed - no files found"}), 500
+            return jsonify({
+                "error": "Download failed - no files found",
+                "cookies_used": used_cookies
+            }), 500
 
         video_file = max(files, key=lambda f: f.stat().st_ctime)
 
@@ -114,7 +130,10 @@ def download_video():
         except:
             pass
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": str(e),
+            "cookies_used": os.path.exists(COOKIES_FILE)
+        }), 500
 
 @app.route("/formats", methods=["POST"])
 def get_formats():
@@ -127,12 +146,11 @@ def get_formats():
     common_headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
     try:
-        opts = {
-            "quiet": True,
-            "headers": common_headers,
-        }
+        opts = {"quiet": True, "headers": common_headers}
+        used_cookies = False
         if os.path.exists(COOKIES_FILE):
             opts["cookiefile"] = COOKIES_FILE
+            used_cookies = True
 
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -149,10 +167,13 @@ def get_formats():
                 }
                 for f in formats if f.get("vcodec") != "none" or f.get("acodec") != "none"
             ]
-            return jsonify(cleaned_formats)
+            return jsonify({"cookies_used": used_cookies, "formats": cleaned_formats})
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": str(e),
+            "cookies_used": os.path.exists(COOKIES_FILE)
+        }), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
