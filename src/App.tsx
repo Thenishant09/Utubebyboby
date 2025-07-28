@@ -151,7 +151,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const backendUrl = 'https://utubebyboby-backend.onrender.com';
+      const backendUrl = 'https://utubebyboby-backend.onrender.com/download';
       const response = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
