@@ -104,13 +104,20 @@ def download_video():
                 "youtube": {
                     "skip": ["hls", "dash"],
                     "player_skip": ["configs"],
+                    "innertube_host": "studio.youtube.com",
+                    "innertube_key": None,
+                    "visitor_data": None,
                 }
             },
             "http_chunk_size": 10485760,  # 10MB chunks
-            "retries": 3,
-            "fragment_retries": 3,
+            "retries": 5,  # Increased retries
+            "fragment_retries": 5,
             "ignoreerrors": False,
             "no_warnings": False,
+            "sleep_interval": 1,  # Add delay between requests
+            "embed_subs": False,
+            "writesubtitles": False,
+            "writeautomaticsub": False,
         }
 
         used_cookies = False
