@@ -9,7 +9,12 @@ import yt_dlp
 import tempfile
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
+# Configure CORS to allow your Vercel frontend
+CORS(app, 
+     origins=["https://utubebyboby.vercel.app", "http://localhost:3000", "http://localhost:5173"],
+     supports_credentials=True,
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "OPTIONS"])
 
 # Temporary download folder
 DOWNLOAD_FOLDER = os.path.join(tempfile.gettempdir(), "downloads")
@@ -47,9 +52,15 @@ def status():
 
 @app.after_request
 def add_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
+    # CORS is handled by flask-cors, but we'll ensure it works
+    origin = request.headers.get('Origin')
+    if origin in ["https://utubebyboby.vercel.app", "http://localhost:3000", "http://localhost:5173"]:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    else:
+        response.headers["Access-Control-Allow-Origin"] = "https://utubebyboby.vercel.app"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
 @app.route("/check-cookies")
@@ -62,8 +73,11 @@ def check_cookies():
         "size": size
     })
 
-@app.route("/download", methods=["POST"])
+@app.route("/download", methods=["POST", "OPTIONS"])
 def download_video():
+    # Handle preflight request
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
     data = request.get_json()
     url = data.get("url")
     requested_quality = data.get("quality", "best")
@@ -133,8 +147,57 @@ def download_video():
             # For now, we'll just download the audio format available
             pass
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
+        # Try multiple download strategies
+        download_success = False
+        last_error = None
+        
+        # Strategy 1: Try with cookies
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+            download_success = True
+        except Exception as e:
+            last_error = str(e)
+            print(f"Strategy 1 failed: {e}")
+            
+            # Strategy 2: Try without cookies if bot detection
+            if "bot" in str(e).lower():
+                print("Trying without cookies...")
+                ydl_opts_no_cookies = ydl_opts.copy()
+                if "cookiefile" in ydl_opts_no_cookies:
+                    del ydl_opts_no_cookies["cookiefile"]
+                
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts_no_cookies) as ydl:
+                        ydl.download([url])
+                    download_success = True
+                    used_cookies = False
+                except Exception as e2:
+                    print(f"Strategy 2 failed: {e2}")
+                    last_error = str(e2)
+                    
+                    # Strategy 3: Try with basic options
+                    print("Trying with minimal options...")
+                    basic_opts = {
+                        "format": "best[height<=480]/best",
+                        "outtmpl": os.path.join(video_folder, f"%(title)s.%(ext)s"),
+                        "quiet": True,
+                    }
+                    
+                    try:
+                        with yt_dlp.YoutubeDL(basic_opts) as ydl:
+                            ydl.download([url])
+                        download_success = True
+                        used_cookies = False
+                    except Exception as e3:
+                        print(f"Strategy 3 failed: {e3}")
+                        last_error = str(e3)
+        
+        if not download_success:
+            return jsonify({
+                "error": f"All download strategies failed. Last error: {last_error}",
+                "cookies_used": used_cookies
+            }), 500
 
         files = [f for f in Path(video_folder).glob("*") if f.is_file()]
         if not files:
