@@ -6,24 +6,31 @@ from pathlib import Path
 from flask import Flask, request, send_file, jsonify, after_this_request
 from flask_cors import CORS
 import yt_dlp
+import tempfile
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
 
-@app.after_request
-def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
-    return response
-
-DOWNLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "downloads")
+# Create a temporary download folder
+DOWNLOAD_FOLDER = os.path.join(tempfile.gettempdir(), "downloads")
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
-COOKIES_FILE = os.path.join(os.path.dirname(__file__), "youtube.com_cookies.txt")  # Path to cookies.txt
+
+COOKIES_FILE = os.path.join(os.path.dirname(__file__), "youtube.com_cookies.txt")  # optional cookies.txt
 
 @app.route("/")
 def index():
-    return "YouTube Video Downloader API"
+    return jsonify({"status": "ok", "message": "YouTube Downloader API is running"})
+
+@app.route("/status")
+def status():
+    return jsonify({"status": "ok"})
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    return response
 
 @app.route("/download", methods=["POST"])
 def download_video():
@@ -39,9 +46,7 @@ def download_video():
     video_folder = os.path.join(DOWNLOAD_FOLDER, video_id)
     os.makedirs(video_folder, exist_ok=True)
 
-    common_headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    }
+    common_headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
     try:
         quality_map = {
@@ -62,10 +67,12 @@ def download_video():
             "outtmpl": os.path.join(video_folder, f"%(title)s.%(ext)s"),
             "merge_output_format": "mp4" if format_ == "mp4" else None,
             "postprocessors": [],
-            "quiet": True,
+            "quiet": False,  # show logs for debugging
             "headers": common_headers,
-            "cookiefile": COOKIES_FILE if os.path.exists(COOKIES_FILE) else None
         }
+
+        if os.path.exists(COOKIES_FILE):
+            ydl_opts["cookiefile"] = COOKIES_FILE
 
         if format_ == "mp3":
             ydl_opts["postprocessors"].append({
@@ -77,10 +84,7 @@ def download_video():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        files = list(Path(video_folder).glob("*"))
-        files = [f for f in files if f.is_file() and f.suffix in [".mp4", ".webm", ".mkv", ".avi", ".mov", ".mp3"]]
-        if not files:
-            files = [f for f in Path(video_folder).iterdir() if f.is_file()]
+        files = [f for f in Path(video_folder).glob("*") if f.is_file()]
         if not files:
             return jsonify({"error": "Download failed - no files found"}), 500
 
@@ -120,26 +124,31 @@ def get_formats():
     if not url:
         return jsonify({"error": "URL is required"}), 400
 
-    common_headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    }
+    common_headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
     try:
-        with yt_dlp.YoutubeDL({"quiet": True, "headers": common_headers, "cookiefile": COOKIES_FILE if os.path.exists(COOKIES_FILE) else None}) as ydl:
+        opts = {
+            "quiet": True,
+            "headers": common_headers,
+        }
+        if os.path.exists(COOKIES_FILE):
+            opts["cookiefile"] = COOKIES_FILE
+
+        with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
             formats = info.get("formats", [])
-            cleaned_formats = []
-            for f in formats:
-                if f.get("vcodec") != "none" or f.get("acodec") != "none":
-                    cleaned_formats.append({
-                        "format_id": f["format_id"],
-                        "ext": f.get("ext"),
-                        "resolution": f.get("format_note") or f.get("height"),
-                        "filesize": f.get("filesize"),
-                        "format": f.get("format"),
-                        "vcodec": f.get("vcodec"),
-                        "acodec": f.get("acodec")
-                    })
+            cleaned_formats = [
+                {
+                    "format_id": f["format_id"],
+                    "ext": f.get("ext"),
+                    "resolution": f.get("format_note") or f.get("height"),
+                    "filesize": f.get("filesize"),
+                    "format": f.get("format"),
+                    "vcodec": f.get("vcodec"),
+                    "acodec": f.get("acodec")
+                }
+                for f in formats if f.get("vcodec") != "none" or f.get("acodec") != "none"
+            ]
             return jsonify(cleaned_formats)
     except Exception as e:
         traceback.print_exc()
