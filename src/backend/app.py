@@ -15,8 +15,17 @@ CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
 DOWNLOAD_FOLDER = os.path.join(tempfile.gettempdir(), "downloads")
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-# Path to cookies.txt (check env var first for Render Secret File)
-COOKIES_FILE = os.environ.get("COOKIES_FILE_PATH", os.path.join(os.path.dirname(__file__), "cookies.txt"))
+# Handle cookies file (copy to /tmp because /etc/secrets is read-only)
+ORIGINAL_COOKIES_PATH = os.environ.get("COOKIES_FILE_PATH", "/etc/secrets/cookies.txt")
+COOKIES_FILE = os.path.join(tempfile.gettempdir(), "cookies.txt")
+
+if os.path.exists(ORIGINAL_COOKIES_PATH):
+    try:
+        shutil.copy(ORIGINAL_COOKIES_PATH, COOKIES_FILE)
+    except Exception as e:
+        print(f"Warning: Could not copy cookies file: {e}")
+else:
+    COOKIES_FILE = None
 
 @app.route("/")
 def index():
@@ -35,7 +44,7 @@ def add_cors_headers(response):
 
 @app.route("/check-cookies")
 def check_cookies():
-    exists = os.path.exists(COOKIES_FILE)
+    exists = COOKIES_FILE and os.path.exists(COOKIES_FILE)
     size = os.path.getsize(COOKIES_FILE) if exists else 0
     return jsonify({
         "cookies_file": COOKIES_FILE,
@@ -78,12 +87,12 @@ def download_video():
             "outtmpl": os.path.join(video_folder, f"%(title)s.%(ext)s"),
             "merge_output_format": "mp4" if format_ == "mp4" else None,
             "postprocessors": [],
-            "quiet": False,  # enable logs for debugging
+            "quiet": False,
             "headers": common_headers,
         }
 
         used_cookies = False
-        if os.path.exists(COOKIES_FILE):
+        if COOKIES_FILE and os.path.exists(COOKIES_FILE):
             ydl_opts["cookiefile"] = COOKIES_FILE
             used_cookies = True
 
@@ -132,7 +141,7 @@ def download_video():
         traceback.print_exc()
         return jsonify({
             "error": str(e),
-            "cookies_used": os.path.exists(COOKIES_FILE)
+            "cookies_used": COOKIES_FILE and os.path.exists(COOKIES_FILE)
         }), 500
 
 @app.route("/formats", methods=["POST"])
@@ -148,7 +157,7 @@ def get_formats():
     try:
         opts = {"quiet": True, "headers": common_headers}
         used_cookies = False
-        if os.path.exists(COOKIES_FILE):
+        if COOKIES_FILE and os.path.exists(COOKIES_FILE):
             opts["cookiefile"] = COOKIES_FILE
             used_cookies = True
 
@@ -172,7 +181,7 @@ def get_formats():
         traceback.print_exc()
         return jsonify({
             "error": str(e),
-            "cookies_used": os.path.exists(COOKIES_FILE)
+            "cookies_used": COOKIES_FILE and os.path.exists(COOKIES_FILE)
         }), 500
 
 if __name__ == "__main__":
