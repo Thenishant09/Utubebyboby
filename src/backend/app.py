@@ -15,17 +15,27 @@ CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
 DOWNLOAD_FOLDER = os.path.join(tempfile.gettempdir(), "downloads")
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-# Handle cookies file (copy to /tmp because /etc/secrets is read-only)
-ORIGINAL_COOKIES_PATH = os.environ.get("COOKIES_FILE_PATH", "/etc/secrets/cookies.txt")
-COOKIES_FILE = os.path.join(tempfile.gettempdir(), "cookies.txt")
+# Handle cookies file - look for local cookies.txt first
+COOKIES_FILE = None
 
-if os.path.exists(ORIGINAL_COOKIES_PATH):
-    try:
-        shutil.copy(ORIGINAL_COOKIES_PATH, COOKIES_FILE)
-    except Exception as e:
-        print(f"Warning: Could not copy cookies file: {e}")
+# Check for local cookies.txt file first
+local_cookies = "cookies.txt"
+if os.path.exists(local_cookies):
+    COOKIES_FILE = os.path.abspath(local_cookies)
+    print(f"Using local cookies file: {COOKIES_FILE}")
 else:
-    COOKIES_FILE = None
+    # Fallback to environment variable
+    ORIGINAL_COOKIES_PATH = os.environ.get("COOKIES_FILE_PATH", "/etc/secrets/cookies.txt")
+    temp_cookies = os.path.join(tempfile.gettempdir(), "cookies.txt")
+    
+    if os.path.exists(ORIGINAL_COOKIES_PATH):
+        try:
+            shutil.copy(ORIGINAL_COOKIES_PATH, temp_cookies)
+            COOKIES_FILE = temp_cookies
+        except Exception as e:
+            print(f"Warning: Could not copy cookies file: {e}")
+    
+print(f"Cookies file: {COOKIES_FILE} (exists: {COOKIES_FILE and os.path.exists(COOKIES_FILE)})") if COOKIES_FILE else print("No cookies file found")
 
 @app.route("/")
 def index():
@@ -69,15 +79,16 @@ def download_video():
     common_headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
     try:
+        # Use single format downloads to avoid FFmpeg requirement
         quality_map = {
-            "best": "bestvideo+bestaudio/best",
+            "best": "best[ext=mp4]/best",
             "worst": "worst",
-            "720p": "bestvideo[height<=720]+bestaudio/best[height<=720]",
-            "1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-            "480p": "bestvideo[height<=480]+bestaudio/best[height<=480]",
-            "360p": "bestvideo[height<=360]+bestaudio/best[height<=360]",
-            "240p": "bestvideo[height<=240]+bestaudio/best[height<=240]",
-            "144p": "bestvideo[height<=144]+bestaudio/best[height<=144]"
+            "720p": "best[height<=720][ext=mp4]/best[height<=720]",
+            "1080p": "best[height<=1080][ext=mp4]/best[height<=1080]", 
+            "480p": "best[height<=480][ext=mp4]/best[height<=480]",
+            "360p": "best[height<=360][ext=mp4]/best[height<=360]",
+            "240p": "best[height<=240][ext=mp4]/best[height<=240]",
+            "144p": "best[height<=144][ext=mp4]/best[height<=144]"
         }
 
         format_selector = quality_map.get(requested_quality, requested_quality)
@@ -89,6 +100,17 @@ def download_video():
             "postprocessors": [],
             "quiet": False,
             "headers": common_headers,
+            "extractor_args": {
+                "youtube": {
+                    "skip": ["hls", "dash"],
+                    "player_skip": ["configs"],
+                }
+            },
+            "http_chunk_size": 10485760,  # 10MB chunks
+            "retries": 3,
+            "fragment_retries": 3,
+            "ignoreerrors": False,
+            "no_warnings": False,
         }
 
         used_cookies = False
@@ -97,11 +119,12 @@ def download_video():
             used_cookies = True
 
         if format_ == "mp3":
-            ydl_opts["postprocessors"].append({
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "192",
-            })
+            # For MP3, try to get audio-only formats first to avoid FFmpeg requirement
+            format_selector = "bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio"
+            ydl_opts["format"] = format_selector
+            # Only add FFmpeg processor if we want to convert
+            # For now, we'll just download the audio format available
+            pass
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
